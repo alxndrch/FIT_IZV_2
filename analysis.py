@@ -1,6 +1,9 @@
 #!/usr/bin/env python3.8
 # coding=utf-8
 
+# TODO: pridat sloupce pro category typ
+# TODO: osetrit ukladani grafu, co delat kdyz soubor existuje?
+
 from matplotlib import pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -44,7 +47,66 @@ def get_dataframe(filename: str = "accidents.pkl.gz",
 # Ukol 2: následky nehod v jednotlivých regionech
 def plot_conseq(df: pd.DataFrame, fig_location: str = None,
                 show_figure: bool = False):
-    pass
+
+    paper_a4 = (8.27, 11.69)  # rozmery formatu A4
+    custom_palette = "blend:#2980b9,#2c3e50"  # vlastni barvna paleta grafu
+
+    ##### agregace dat
+
+    df = df.groupby(by="region").agg({ "p13a" : "sum",  # a)
+                                       "p13b" : "sum",  # b)
+                                       "p13c" : "sum",  # c)
+                                       "p1" : "count"   # d)
+                                       }).reset_index()
+
+    df = df.sort_values("p1", ascending=False)  # serazeni podle poctu nehod
+
+    ##### vytvareni grafu
+
+    sns.set_palette(sns.color_palette("Paired"))
+
+    fig, axes = plt.subplots(nrows=4, ncols=1, figsize=paper_a4,
+                             constrained_layout=True)
+
+    fig.suptitle("Následky nehod v jednotlivých regionech", fontsize=14)
+    fig.canvas.set_window_title("Následky nehod v jednotlivých regionech")
+
+    (ax1, ax2, ax3, ax4) = axes
+
+    # a)počet lidí, kteří zemřeli při nehodě (​p13a​)
+    ax1 = sns.barplot(data=df, x="region", y="p13a", ax=ax1, palette="blend:#403A3E,#BE5869")
+    # b)počet lidí, kteří byli těžce zranění (​p13b​)
+    ax2 = sns.barplot(data=df, x="region", y="p13b", ax=ax2, palette="blend:#457fca,#5691c8")
+    # c)počet lidí, kteří byli lehce zranění (​p13c​)
+    ax3 = sns.barplot(data=df, x="region", y="p13c", ax=ax3, palette="blend:#2980b9,#2c3e50")
+    # d)celkový počet nehod v daném kraji
+    ax4 = sns.barplot(data=df, x="region", y="p1", ax=ax4, palette="blend:#1e3c72,#457fca")
+
+    # nadpisy grafu
+    titles = ["Počet lidí, kteří zemřeli při nehodě",  # a)
+              "Počet lidí, kteří byli těžce zranění",  # b)
+              "Počet lidí, kteří byli lehce zranění",  # c)
+              "Celkový počet nehod v daném kraji"]     # d)
+
+    # popis osy y
+    labels_y = ["Počet zemřelých",       # a)
+               "Počet těžce zraněných",  # b)
+               "Počet lehce zraněných",  # c)
+               "Počet nehod"]            # d)
+
+    # nastaveni grafu
+    for ax, title, label in zip(axes, titles, labels_y):
+        _set_ax(ax, "Regiony", label, title)
+
+    ##### vystup
+
+    # ulozeni grafu
+    if fig_location is not None:
+        plt.savefig(fig_location)
+
+    # zobrazeni grafu
+    if show_figure:
+        plt.show()
 
 
 # Ukol3: příčina nehody a škoda
@@ -59,8 +121,17 @@ def plot_surface(df: pd.DataFrame, fig_location: str = None,
     pass
 
 
+# pomocna funkce pro vykreslovani grafu
+def _set_ax(ax, xlabel, ylabel, title):
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel)
+    ax.grid(which="major", axis="y", color="gray", linewidth=0.4)
+    ax.grid(b=False, which="major", axis="x")
+
 if __name__ == "__main__":
     df = get_dataframe("accidents.pkl.gz", True)
-    # plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
+    # plot_conseq(df)
+    plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
     # plot_damage(df, "02_priciny.png", True)
     # plot_surface(df, "03_stav.png", True)
