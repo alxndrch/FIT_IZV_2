@@ -4,6 +4,7 @@
 # TODO: pridat sloupce pro category typ
 # TODO: osetrit ukladani grafu, co delat kdyz soubor existuje?
 # TODO: prijit na lepsi zpusob jak udelat plot
+# TODO: opravit cut interval pro p53
 
 from matplotlib import pyplot as plt
 import pandas as pd
@@ -25,10 +26,11 @@ def get_dataframe(filename: str = "accidents.pkl.gz",
     MB = 1_048_576  # 1024**2, pro prevod na MB
 
     # sloupce, ktere budou mit typ category
-    category_col = ["p36", "p6", "p7", "p8", "p9", "p10", "p11", "p15", "p16",
-                    "p17", "p18", "p19", "p20", "p21", "p22", "p23", "p24",
-                    "p27", "p28", "p39", "p44", "p45a", "p48a", "p49", "p50a",
-                    "p50b", "p51", "p55a", "p57", "p58", "q", "t", "p5a"]
+    category_col = ["p36", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "p15",
+                    "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23",
+                    "p24", "p27", "p28", "p39", "p44", "p45a", "p48a", "p49",
+                    "p50a", "p50b", "p51", "p55a", "p57", "p58", "q", "t",
+                    "p5a"]
 
     if verbose:
         print(f"orig_size={df.memory_usage(deep=True).sum() / MB:.1f} MB")
@@ -64,15 +66,13 @@ def plot_conseq(df: pd.DataFrame, fig_location: str = None,
 
     # ----- Vytvareni grafu -----
 
-    sns.set_palette(sns.color_palette("Paired"))
-
     fig, axes = plt.subplots(nrows=4, ncols=1, figsize=paper_a4,
                              constrained_layout=True)
 
     fig.suptitle("Následky nehod v jednotlivých regionech", fontsize=14)
     fig.canvas.set_window_title("Následky nehod v jednotlivých regionech")
 
-    (ax1, ax2, ax3, ax4) = axes
+    ax1, ax2, ax3, ax4 = axes
 
     # a)počet lidí, kteří zemřeli při nehodě (​p13a​)
     ax1 = sns.barplot(data=df, x="region", y="p13a", ax=ax1, palette=palette)
@@ -113,7 +113,75 @@ def plot_conseq(df: pd.DataFrame, fig_location: str = None,
 # Ukol3: příčina nehody a škoda
 def plot_damage(df: pd.DataFrame, fig_location: str = None,
                 show_figure: bool = False):
-    pass
+
+    regions = ["PHA", "JHM", "VYS", "ZLK"]  # vybrane regiony
+
+    # priciny nehod, ciselna reprezentace
+    p12_bins = [100, 200, 300, 400, 500, 600, 615]
+    # skody na vozidlech, ciselna reprezentace
+    p53_bins = [0, 50, 200, 500, 1000, np.inf]
+    # priciny nehod
+    p12_labels = ["Nezaviněnná řidičem", "Nepřiměřená rychlost jízdy",
+                  "Nesprávné předjíždění", "Nedání přednosti v jízdě",
+                  "Nesprávný způsob jízdy", "Technická závada vozidla"]
+    # skody na vozidlech, intervaly
+    p53_labels = ["< 50", "50 - 200", "200 - 500", "500 - 1 000", "> 1 000"]
+
+    paper_a4 = (11.69, 8.27)  # rozmery formatu A4
+    palette = "blend:#2980b9,#2c3e50"  # vlastni barvna paleta grafu
+
+    # ----- Agregace dat -----
+
+    # vyber pozadovych radku a sloupcu
+    df = df.loc[df["region"].isin(regions), ["p12", "p53", "region"]]
+
+    # rozdelene priciny nehody
+    df["p12"] = pd.cut(df["p12"], bins=p12_bins, labels=p12_labels,
+                       include_lowest=True)
+    # rozdeleni skody na vozidlech
+    df["p53"] = pd.cut(df["p53"], bins=p53_bins, labels=p53_labels,
+                       include_lowest=True)
+
+    df = df.set_index(["region"])
+
+    # ----- Vytvareni grafu -----
+
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=paper_a4)
+
+    fig.suptitle("Příčina nehody a škoda", fontsize=14)
+    fig.canvas.set_window_title("Příčina nehody a škoda")
+
+    (ax1, ax2), (ax3, ax4) = axes
+
+    # region: Praha
+    ax1 = sns.countplot(data=df.loc[("PHA")], ax=ax1, x="p53", hue="p12")
+    # region: Jihomoravky kraj
+    ax2 = sns.countplot(data=df.loc[("JHM")], ax=ax2, x="p53", hue="p12")
+    # region: Vysocina
+    ax3 = sns.countplot(data=df.loc[("VYS")], ax=ax3, x="p53", hue="p12")
+    # region: Zlinsky kraj
+    ax4 = sns.countplot(data=df.loc[("ZLK")], ax=ax4, x="p53", hue="p12")
+
+    fig.legend(title="Legenda", loc="center right", labels=p12_labels,
+               borderaxespad=0.1, fontsize='small')
+    plt.subplots_adjust(hspace=0.3, right=0.825, left=0.05)
+
+    # nadpisy grafu
+    titles = ["Praha", "Jihomoravský kraj", "Vysočina", "Zlínský kraj"]
+
+    # nastaveni grafu
+    for ax, title in zip([ax1, ax2, ax3, ax4], titles):
+        _set_ax(ax, "Škoda [tisíc Kč]", "Počet nehod", title, yscale="log")
+
+    # ----- Vystup -----
+
+    # ulozeni grafu
+    if fig_location is not None:
+        plt.savefig(fig_location)
+
+    # zobrazeni grafu
+    if show_figure:
+        plt.show()
 
 
 # Ukol 4: povrch vozovky
@@ -123,7 +191,9 @@ def plot_surface(df: pd.DataFrame, fig_location: str = None,
 
 
 # pomocna funkce pro vykreslovani grafu
-def _set_ax(ax, xlabel, ylabel, title):
+def _set_ax(ax, xlabel, ylabel, title, yscale="linear"):
+    ax.legend([], [], frameon=False)
+    ax.set_yscale(yscale)
     ax.set_title(title)
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
@@ -133,6 +203,6 @@ def _set_ax(ax, xlabel, ylabel, title):
 
 if __name__ == "__main__":
     df = get_dataframe("accidents.pkl.gz", True)
-    plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
-    # plot_damage(df, "02_priciny.png", True)
+    # plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
+    plot_damage(df, "02_priciny.png", True)
     # plot_surface(df, "03_stav.png", True)
