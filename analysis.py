@@ -1,10 +1,6 @@
 #!/usr/bin/env python3.8
 # coding=utf-8
 
-# TODO: pridat sloupce pro category typ
-# TODO: osetrit ukladani grafu, co delat kdyz soubor existuje?
-# TODO: opravit cut interval pro p53
-
 from matplotlib import pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -15,32 +11,33 @@ import os
 # Ukol 1: nacteni dat
 def get_dataframe(filename: str = "accidents.pkl.gz",
                   verbose: bool = False) -> pd.DataFrame:
+    """ Nacteni dat ze souboru"""
 
     if not os.path.exists(filename):
         return None  # pokud zadany soubor neexistuje
 
-    # nactany dataframe z pickle
+    # nactani dat z pickle
     df = pd.read_pickle(filename, compression="gzip")
 
     MB = 1_048_576  # 1024**2, pro prevod na MB
 
     # sloupce, ktere budou mit typ category
-    category_col = ["p36", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "p15",
-                    "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23",
-                    "p24", "p27", "p28", "p39", "p44", "p45a", "p48a", "p49",
-                    "p50a", "p50b", "p51", "p55a", "p57", "p58", "h", "i",
-                    "j", "k", "l", "n", "o", "p", "q", "r", "s", "t", "p5a"]
+    category_col = ["p36", "p37", "weekday(p2a)", "p2b", "p6", "p7", "p8",
+                    "p9", "p10", "p11", "p12", "p15", "p16", "p17", "p18",
+                    "p19", "p20", "p21", "p22", "p23", "p24", "p27", "p28",
+                    "p39", "p44", "p45a", "p48a", "p49", "p50a", "p50b",
+                    "p51", "p55a", "p57", "p58", "h", "i", "j", "k", "l",
+                    "n", "o", "p", "q", "r", "s", "t", "p5a"]
 
-    if verbose:
+    if verbose:  # vypis velikosti dat pred zmenou sloupcu na category
         print(f"orig_size={df.memory_usage(deep=True).sum() / MB:.1f} MB")
 
     for c in category_col:  # zmena typu na category pro sloupce z category_col
         df[c] = df[c].astype("category")
 
-    df["p2a"] = df["p2a"].astype("datetime64")  # zmena series na typ pro datum
-    df = df.rename(columns={"p2a": "date"})  # zmena nazvu sloupce
+    df["date"] = df["p2a"].astype("datetime64")  # vytvoreni noveho sloupce
 
-    if verbose:
+    if verbose:  # vypis velikosti dat po zmene sloupcu na category
         print(f"new_size={df.memory_usage(deep=True).sum() / MB:.1f} MB")
 
     return df
@@ -49,6 +46,9 @@ def get_dataframe(filename: str = "accidents.pkl.gz",
 # Ukol 2: následky nehod v jednotlivých regionech
 def plot_conseq(df: pd.DataFrame, fig_location: str = None,
                 show_figure: bool = False):
+    """ Zpracovani dat a vyhodnoceni nasledku nehod
+        v jednotlivych regionech.
+    """
 
     paper_a4 = (8.27, 11.69)  # rozmery formatu A4
     palette = "blend:#2c3e50,#2980b9"  # vlastni barvna paleta grafu
@@ -112,6 +112,14 @@ def plot_conseq(df: pd.DataFrame, fig_location: str = None,
 # Ukol3: příčina nehody a škoda
 def plot_damage(df: pd.DataFrame, fig_location: str = None,
                 show_figure: bool = False):
+    """ Zpracovani dat a vyhodnoceni příčiny nehod
+        a jejich škody ve 4 vybranych regionech
+        Vybrané regiony:
+            Praha,
+            Jihomoravský kraj,
+            Vysočina,
+            Zlínský kraj
+    """
 
     regions = ["PHA", "JHM", "VYS", "ZLK"]  # vybrane kraje
 
@@ -133,7 +141,7 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     # vyber pozadovych radku a sloupcu
     # sloupce p1 pro agregaci dat (count)
     df = df.loc[df["region"].isin(regions), ["p1", "p12", "p53", "region"]]
-    df["p53"] = df["p53"].div(10)  # hodnoty jsou v date ve stovkach
+    df["p53"] = df["p53"].div(10)  # hodnoty jsou v date ve stovkach
     # rozdelene priciny nehody
     df["p12"] = pd.cut(df["p12"], bins=p12_bins, labels=p12_labels,
                        include_lowest=True)
@@ -141,7 +149,8 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     df["p53"] = pd.cut(df["p53"], bins=p53_bins, labels=p53_labels,
                        include_lowest=True)
 
-    df = df.groupby(by=["region", "p53", "p12"]).agg({"p1": "count"}).reset_index()
+    df = df.groupby(by=["region", "p53", "p12"]).agg({"p1": "count"})
+    df = df.reset_index()
     df = df.set_index(["region"])
 
     # ----- Vytvareni grafu -----
@@ -155,11 +164,11 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
 
     # region: Praha
     sns.barplot(data=df.loc[("PHA")], ax=ax1, x="p53", y="p1", hue="p12")
-    ## region: Jihomoravky kraj
+    # region: Jihomoravky kraj
     sns.barplot(data=df.loc[("JHM")], ax=ax2, x="p53", y="p1", hue="p12")
-    ## region: Vysocina
+    # region: Vysocina
     sns.barplot(data=df.loc[("VYS")], ax=ax3, x="p53", y="p1", hue="p12")
-    ## region: Zlinsky kraj
+    # region: Zlinsky kraj
     sns.barplot(data=df.loc[("ZLK")], ax=ax4, x="p53", y="p1", hue="p12")
 
     # nadpisy grafu
@@ -167,9 +176,10 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
 
     # nastaveni grafu
     for ax, title in zip([ax1, ax2, ax3, ax4], titles):
+        ax.legend().remove()
         _set_ax(ax, "Škoda [tisíc Kč]", "Počet nehod", title, yscale="log")
 
-    plt.legend(title="Legenda",  loc=(1.04,0.9))
+    plt.legend(title="Příčina nehody", loc=(1.04, 0.9))
     plt.tight_layout()
     plt.subplots_adjust(hspace=0.3)
 
@@ -187,6 +197,14 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
 # Ukol 4: povrch vozovky
 def plot_surface(df: pd.DataFrame, fig_location: str = None,
                  show_figure: bool = False):
+    """ Zpracovani dat a vyhodnoceni povrchu vozovky
+        u nehod v jednotlivych dnech ve 4 vybranych regionech
+        Vybrané regiony:
+            Praha,
+            Jihomoravský kraj,
+            Vysočina,
+            Zlínský kraj
+    """
 
     regions = ["PHA", "JHM", "VYS", "ZLK"]  # vybrane kraje
     paper_a4 = (11.69, 8.27)  # rozmery formatu A4
@@ -206,8 +224,11 @@ def plot_surface(df: pd.DataFrame, fig_location: str = None,
 
     df = df.loc[df["region"].isin(regions), ["date", "p16", "region"]]
 
+    # ----- Ziskani pozadovanych dat -----
+
     df = pd.crosstab(index=[df["region"], df["date"]], columns=df["p16"])
-    df = df.rename(columns=p16_labels)  # prejmenovani sloupcu (hodhoty p16)
+    # zpracovani kontingencni tabulky
+    df = df.rename(columns=p16_labels)  # prejmenovani sloupcu (hodhoty p16)
     df = df.groupby(by=["region", pd.Grouper(level="date", freq="M")]).sum()
     df = df.stack(level="p16").reset_index()
     df = df.rename(columns={0: "pocet"})
@@ -221,26 +242,28 @@ def plot_surface(df: pd.DataFrame, fig_location: str = None,
     (ax1, ax2), (ax3, ax4) = axes
 
     # region: Praha
-    sns.lineplot(data=df.loc["JHM"], ax=ax1, x="date", y="pocet", hue="p16")
+    sns.lineplot(data=df.loc["PHA"], ax=ax1, x="date", y="pocet", hue="p16")
     # region: Jihomoravky kraj
-    sns.lineplot(data=df.loc[("JHM")], ax=ax2, x="date", y="pocet", hue="p16")
+    sns.lineplot(data=df.loc["JHM"], ax=ax2, x="date", y="pocet", hue="p16")
     # region: Vysocina
-    sns.lineplot(data=df.loc[("VYS")], ax=ax3, x="date", y="pocet", hue="p16")
-    #### region: Zlinsky kraj
-    sns.lineplot(data=df.loc[("ZLK")], ax=ax4, x="date", y="pocet", hue="p16")
+    sns.lineplot(data=df.loc["VYS"], ax=ax3, x="date", y="pocet", hue="p16")
+    # region: Zlinsky kraj
+    sns.lineplot(data=df.loc["ZLK"], ax=ax4, x="date", y="pocet", hue="p16")
 
     # nadpisy grafu
     titles = ["Praha", "Jihomoravský kraj", "Vysočina", "Zlínský kraj"]
 
     # nastaveni grafu
     for ax, title in zip([ax1, ax2, ax3, ax4], titles):
+        ax.legend().remove()
         _set_ax(ax, "Datum vzniku nehody", "Počet nehod", title)
 
-    plt.legend(title="Legenda",  loc=(1.04,0.9))
+    plt.legend(title="Stav vozovky", loc=(1.04, 0.9))
     plt.tight_layout()
     plt.subplots_adjust(hspace=0.3)
 
     # ----- Vystup -----
+
     # ulozeni grafu
     if fig_location is not None:
         plt.savefig(fig_location)
@@ -251,7 +274,8 @@ def plot_surface(df: pd.DataFrame, fig_location: str = None,
 
 # pomocna funkce pro vykreslovani grafu
 def _set_ax(ax, xlabel, ylabel, title, yscale="linear"):
-    ax.legend().remove()
+    """ Pomocna funkce pro uprava grafu """
+
     ax.set_yscale(yscale)
     ax.set_title(title)
     ax.set_ylabel(ylabel)
@@ -263,6 +287,6 @@ def _set_ax(ax, xlabel, ylabel, title, yscale="linear"):
 
 if __name__ == "__main__":
     df = get_dataframe("accidents.pkl.gz", True)
-    # plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
-    # plot_damage(df, "02_priciny.png", True)
-    plot_surface(df, "03_stav.png", True)
+    plot_conseq(df, fig_location="01_nasledky.png")
+    plot_damage(df, "02_priciny.png")
+    plot_surface(df, "03_stav.png", False)
