@@ -3,7 +3,6 @@
 
 # TODO: pridat sloupce pro category typ
 # TODO: osetrit ukladani grafu, co delat kdyz soubor existuje?
-# TODO: prijit na lepsi zpusob jak udelat plot
 # TODO: opravit cut interval pro p53
 
 from matplotlib import pyplot as plt
@@ -52,7 +51,7 @@ def plot_conseq(df: pd.DataFrame, fig_location: str = None,
                 show_figure: bool = False):
 
     paper_a4 = (8.27, 11.69)  # rozmery formatu A4
-    palette = "blend:#2980b9,#2c3e50"  # vlastni barvna paleta grafu
+    palette = "blend:#2c3e50,#2980b9"  # vlastni barvna paleta grafu
 
     # ----- Agregace dat -----
 
@@ -75,13 +74,13 @@ def plot_conseq(df: pd.DataFrame, fig_location: str = None,
     ax1, ax2, ax3, ax4 = axes
 
     # a)počet lidí, kteří zemřeli při nehodě (​p13a​)
-    ax1 = sns.barplot(data=df, x="region", y="p13a", ax=ax1, palette=palette)
+    sns.barplot(data=df, x="region", y="p13a", ax=ax1, palette=palette)
     # b)počet lidí, kteří byli těžce zranění (​p13b​)
-    ax2 = sns.barplot(data=df, x="region", y="p13b", ax=ax2, palette=palette)
+    sns.barplot(data=df, x="region", y="p13b", ax=ax2, palette=palette)
     # c)počet lidí, kteří byli lehce zranění (​p13c​)
-    ax3 = sns.barplot(data=df, x="region", y="p13c", ax=ax3, palette=palette)
+    sns.barplot(data=df, x="region", y="p13c", ax=ax3, palette=palette)
     # d)celkový počet nehod v daném kraji
-    ax4 = sns.barplot(data=df, x="region", y="p1", ax=ax4, palette=palette)
+    sns.barplot(data=df, x="region", y="p1", ax=ax4, palette=palette)
 
     # nadpisy grafu
     titles = ["Počet lidí, kteří zemřeli při nehodě",  # a)
@@ -114,7 +113,9 @@ def plot_conseq(df: pd.DataFrame, fig_location: str = None,
 def plot_damage(df: pd.DataFrame, fig_location: str = None,
                 show_figure: bool = False):
 
-    regions = ["PHA", "JHM", "VYS", "ZLK"]  # vybrane regiony
+    regions = ["PHA", "JHM", "VYS", "ZLK"]  # vybrane kraje
+
+    paper_a4 = (11.69, 8.27)  # rozmery formatu A4
 
     # priciny nehod, ciselna reprezentace
     p12_bins = [100, 200, 300, 400, 500, 600, 615]
@@ -127,14 +128,12 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     # skody na vozidlech, intervaly
     p53_labels = ["< 50", "50 - 200", "200 - 500", "500 - 1 000", "> 1 000"]
 
-    paper_a4 = (11.69, 8.27)  # rozmery formatu A4
-    palette = "blend:#2980b9,#2c3e50"  # vlastni barvna paleta grafu
-
     # ----- Agregace dat -----
 
     # vyber pozadovych radku a sloupcu
-    df = df.loc[df["region"].isin(regions), ["p12", "p53", "region"]]
-
+    # sloupce p1 pro agregaci dat (count)
+    df = df.loc[df["region"].isin(regions), ["p1", "p12", "p53", "region"]]
+    df["p53"] = df["p53"].div(10)
     # rozdelene priciny nehody
     df["p12"] = pd.cut(df["p12"], bins=p12_bins, labels=p12_labels,
                        include_lowest=True)
@@ -142,6 +141,7 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     df["p53"] = pd.cut(df["p53"], bins=p53_bins, labels=p53_labels,
                        include_lowest=True)
 
+    df = df.groupby(by=["region", "p53", "p12"]).agg({"p1": "count"}).reset_index()
     df = df.set_index(["region"])
 
     # ----- Vytvareni grafu -----
@@ -154,17 +154,13 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     (ax1, ax2), (ax3, ax4) = axes
 
     # region: Praha
-    ax1 = sns.countplot(data=df.loc[("PHA")], ax=ax1, x="p53", hue="p12")
-    # region: Jihomoravky kraj
-    ax2 = sns.countplot(data=df.loc[("JHM")], ax=ax2, x="p53", hue="p12")
-    # region: Vysocina
-    ax3 = sns.countplot(data=df.loc[("VYS")], ax=ax3, x="p53", hue="p12")
-    # region: Zlinsky kraj
-    ax4 = sns.countplot(data=df.loc[("ZLK")], ax=ax4, x="p53", hue="p12")
-
-    fig.legend(title="Legenda", loc="center right", labels=p12_labels,
-               borderaxespad=0.1, fontsize='small')
-    plt.subplots_adjust(hspace=0.3, right=0.825, left=0.05)
+    sns.barplot(data=df.loc[("PHA")], ax=ax1, x="p53", y="p1", hue="p12")
+    ## region: Jihomoravky kraj
+    sns.barplot(data=df.loc[("JHM")], ax=ax2, x="p53", y="p1", hue="p12")
+    ## region: Vysocina
+    sns.barplot(data=df.loc[("VYS")], ax=ax3, x="p53", y="p1", hue="p12")
+    ## region: Zlinsky kraj
+    sns.barplot(data=df.loc[("ZLK")], ax=ax4, x="p53", y="p1", hue="p12")
 
     # nadpisy grafu
     titles = ["Praha", "Jihomoravský kraj", "Vysočina", "Zlínský kraj"]
@@ -172,6 +168,10 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     # nastaveni grafu
     for ax, title in zip([ax1, ax2, ax3, ax4], titles):
         _set_ax(ax, "Škoda [tisíc Kč]", "Počet nehod", title, yscale="log")
+
+    plt.legend(title="Legenda",  loc=(1.04,0.9))
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3)
 
     # ----- Vystup -----
 
@@ -187,22 +187,26 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
 # Ukol 4: povrch vozovky
 def plot_surface(df: pd.DataFrame, fig_location: str = None,
                  show_figure: bool = False):
-    pass
+
+    regions = ["PHA", "JHM", "VYS", "ZLK"]  # vybrane kraje
+    paper_a4 = (11.69, 8.27)  # rozmery formatu A4
+    palette = "blend:#2980b9,#2c3e50"  # vlastni barvna paleta grafu
 
 
 # pomocna funkce pro vykreslovani grafu
 def _set_ax(ax, xlabel, ylabel, title, yscale="linear"):
-    ax.legend([], [], frameon=False)
+    ax.legend().remove()
     ax.set_yscale(yscale)
     ax.set_title(title)
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
+    ax.set_ylim(bottom=1)
     ax.grid(which="major", axis="y", color="gray", linewidth=0.4)
     ax.grid(b=False, which="major", axis="x")
 
 
 if __name__ == "__main__":
     df = get_dataframe("accidents.pkl.gz", True)
-    # plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
-    plot_damage(df, "02_priciny.png", True)
-    # plot_surface(df, "03_stav.png", True)
+    #plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
+    #plot_damage(df, "02_priciny.png", True)
+    plot_surface(df, "03_stav.png", True)
