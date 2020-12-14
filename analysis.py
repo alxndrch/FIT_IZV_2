@@ -28,8 +28,8 @@ def get_dataframe(filename: str = "accidents.pkl.gz",
     category_col = ["p36", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "p15",
                     "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23",
                     "p24", "p27", "p28", "p39", "p44", "p45a", "p48a", "p49",
-                    "p50a", "p50b", "p51", "p55a", "p57", "p58", "q", "t",
-                    "p5a"]
+                    "p50a", "p50b", "p51", "p55a", "p57", "p58", "h", "i",
+                    "j", "k", "l", "n", "o", "p", "q", "r", "s", "t", "p5a"]
 
     if verbose:
         print(f"orig_size={df.memory_usage(deep=True).sum() / MB:.1f} MB")
@@ -133,7 +133,7 @@ def plot_damage(df: pd.DataFrame, fig_location: str = None,
     # vyber pozadovych radku a sloupcu
     # sloupce p1 pro agregaci dat (count)
     df = df.loc[df["region"].isin(regions), ["p1", "p12", "p53", "region"]]
-    df["p53"] = df["p53"].div(10)
+    df["p53"] = df["p53"].div(10)  # hodnoty jsou v date ve stovkach
     # rozdelene priciny nehody
     df["p12"] = pd.cut(df["p12"], bins=p12_bins, labels=p12_labels,
                        include_lowest=True)
@@ -192,6 +192,62 @@ def plot_surface(df: pd.DataFrame, fig_location: str = None,
     paper_a4 = (11.69, 8.27)  # rozmery formatu A4
     palette = "blend:#2980b9,#2c3e50"  # vlastni barvna paleta grafu
 
+    # nove nazvy sloupcu
+    p16_labels = {0: "jiný stav",
+                  1: "povrch suchý neznečištěný",
+                  2: "povrch suchý znečištěný",
+                  3: "povrch mokrý",
+                  4: "bláto",
+                  5: "náledí, ujetý sníh, posypané",
+                  6: "náledí, ujetý sníh, neposypané",
+                  7: "rozlitý olej, nafta apod.",
+                  8: "sněhová vrstva",
+                  9: "náhlá změna stavu vozovky"}
+
+    df = df.loc[df["region"].isin(regions), ["date", "p16", "region"]]
+
+    df = pd.crosstab(index=[df["region"], df["date"]], columns=df["p16"])
+    df = df.rename(columns=p16_labels)  # prejmenovani sloupcu (hodhoty p16)
+    df = df.groupby(by=["region", pd.Grouper(level="date", freq="M")]).sum()
+    df = df.stack(level="p16").reset_index()
+    df = df.rename(columns={0: "pocet"})
+    df = df.set_index("region")
+
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=paper_a4)
+
+    fig.suptitle("Následky nehod v jednotlivých regionech", fontsize=14)
+    fig.canvas.set_window_title("Následky nehod v jednotlivých regionech")
+
+    (ax1, ax2), (ax3, ax4) = axes
+
+    # region: Praha
+    sns.lineplot(data=df.loc["JHM"], ax=ax1, x="date", y="pocet", hue="p16")
+    # region: Jihomoravky kraj
+    sns.lineplot(data=df.loc[("JHM")], ax=ax2, x="date", y="pocet", hue="p16")
+    # region: Vysocina
+    sns.lineplot(data=df.loc[("VYS")], ax=ax3, x="date", y="pocet", hue="p16")
+    #### region: Zlinsky kraj
+    sns.lineplot(data=df.loc[("ZLK")], ax=ax4, x="date", y="pocet", hue="p16")
+
+    # nadpisy grafu
+    titles = ["Praha", "Jihomoravský kraj", "Vysočina", "Zlínský kraj"]
+
+    # nastaveni grafu
+    for ax, title in zip([ax1, ax2, ax3, ax4], titles):
+        _set_ax(ax, "Datum vzniku nehody", "Počet nehod", title)
+
+    plt.legend(title="Legenda",  loc=(1.04,0.9))
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3)
+
+    # ----- Vystup -----
+    # ulozeni grafu
+    if fig_location is not None:
+        plt.savefig(fig_location)
+    # zobrazeni grafu
+    if show_figure:
+        plt.show()
+
 
 # pomocna funkce pro vykreslovani grafu
 def _set_ax(ax, xlabel, ylabel, title, yscale="linear"):
@@ -207,6 +263,6 @@ def _set_ax(ax, xlabel, ylabel, title, yscale="linear"):
 
 if __name__ == "__main__":
     df = get_dataframe("accidents.pkl.gz", True)
-    #plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
-    #plot_damage(df, "02_priciny.png", True)
+    # plot_conseq(df, fig_location="01_nasledky.png", show_figure=True)
+    # plot_damage(df, "02_priciny.png", True)
     plot_surface(df, "03_stav.png", True)
